@@ -1,0 +1,5 @@
+data/bookmarks.db
+data/exports/*.csv
+data/exports/*.txt
+__pycache__/
+*.pyc
