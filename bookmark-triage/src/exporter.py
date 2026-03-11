@@ -3,7 +3,7 @@
 import csv
 import os
 from datetime import datetime
-from src.db import get_connection, get_bookmarks, count_bookmarks
+from src.db import get_connection, get_bookmarks, count_bookmarks, get_total_duplicates
 
 EXPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "exports")
 
@@ -41,6 +41,10 @@ def export_all():
         rows = get_bookmarks(conn, "site_bucket = ?", (bucket,))
         _write_csv(filename, rows)
 
+    # X review queue — all X bookmarks, separated for later deeper analysis
+    x_review = get_bookmarks(conn, "site_bucket = 'x'")
+    _write_csv("x_review_queue.csv", x_review)
+
     # Everything else (not in the named buckets and not build candidates)
     named_buckets = tuple(bucket_files.keys())
     placeholders = ",".join("?" for _ in named_buckets)
@@ -60,18 +64,20 @@ def print_summary():
     conn = get_connection()
 
     total = count_bookmarks(conn)
-    dupes = count_bookmarks(conn, "status = 'duplicate'")
+    dupes = get_total_duplicates(conn)
     candidates = count_bookmarks(conn, "is_build_candidate = 1")
+    x_queued = count_bookmarks(conn, "site_bucket = 'x'")
 
     # Bucket counts
     rows = conn.execute(
-        "SELECT site_bucket, COUNT(*) as cnt FROM bookmarks WHERE status != 'duplicate' GROUP BY site_bucket ORDER BY cnt DESC"
+        "SELECT site_bucket, COUNT(*) as cnt FROM bookmarks GROUP BY site_bucket ORDER BY cnt DESC"
     ).fetchall()
 
     print("\n=== Bookmark Triage Summary ===")
-    print(f"Total imported:      {total}")
+    print(f"Total in database:   {total}")
     print(f"Duplicates skipped:  {dupes}")
     print(f"Build candidates:    {candidates}")
+    print(f"X links for review:  {x_queued}")
     print(f"\nBookmarks by bucket:")
     for row in rows:
         bucket = row["site_bucket"] or "(none)"
@@ -87,10 +93,11 @@ def write_summary_report():
     os.makedirs(EXPORTS_DIR, exist_ok=True)
 
     total = count_bookmarks(conn)
-    dupes = count_bookmarks(conn, "status = 'duplicate'")
+    dupes = get_total_duplicates(conn)
     candidates = count_bookmarks(conn, "is_build_candidate = 1")
+    x_queued = count_bookmarks(conn, "site_bucket = 'x'")
     rows = conn.execute(
-        "SELECT site_bucket, COUNT(*) as cnt FROM bookmarks WHERE status != 'duplicate' GROUP BY site_bucket ORDER BY cnt DESC"
+        "SELECT site_bucket, COUNT(*) as cnt FROM bookmarks GROUP BY site_bucket ORDER BY cnt DESC"
     ).fetchall()
 
     filepath = os.path.join(EXPORTS_DIR, "summary_report.txt")
@@ -98,9 +105,10 @@ def write_summary_report():
         f.write(f"Bookmark Triage Summary Report\n")
         f.write(f"Generated: {datetime.now().isoformat()}\n")
         f.write(f"{'='*40}\n\n")
-        f.write(f"Total bookmarks:     {total}\n")
+        f.write(f"Total in database:   {total}\n")
         f.write(f"Duplicates skipped:  {dupes}\n")
-        f.write(f"Build candidates:    {candidates}\n\n")
+        f.write(f"Build candidates:    {candidates}\n")
+        f.write(f"X links for review:  {x_queued}\n\n")
         f.write(f"Bookmarks by bucket:\n")
         for row in rows:
             bucket = row["site_bucket"] or "(none)"

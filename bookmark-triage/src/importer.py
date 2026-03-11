@@ -2,7 +2,7 @@
 
 import csv
 import os
-from src.db import get_connection, init_db, insert_bookmark
+from src.db import get_connection, init_db, insert_bookmark, save_import_stats
 from src.utils import normalize_url, extract_domain
 
 
@@ -94,6 +94,7 @@ def import_file(filepath):
             print(f"  Error importing {url}: {e}")
             errors += 1
 
+    save_import_stats(conn, imported, duplicates, errors)
     conn.commit()
     conn.close()
     print(f"Import complete: {imported} imported, {duplicates} duplicates, {errors} errors")

@@ -31,8 +31,31 @@ def init_db():
             updated_at TEXT NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS import_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            imported INTEGER DEFAULT 0,
+            duplicates INTEGER DEFAULT 0,
+            errors INTEGER DEFAULT 0,
+            run_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
+
+
+def save_import_stats(conn, imported, duplicates, errors):
+    """Record import run stats so the summary can report them accurately."""
+    conn.execute(
+        "INSERT INTO import_stats (imported, duplicates, errors, run_at) VALUES (?, ?, ?, ?)",
+        (imported, duplicates, errors, datetime.now().isoformat()),
+    )
+
+
+def get_total_duplicates(conn):
+    """Sum of all duplicates across all import runs."""
+    row = conn.execute("SELECT COALESCE(SUM(duplicates), 0) FROM import_stats").fetchone()
+    return row[0]
 
 
 def insert_bookmark(conn, original_url, normalized_url, title=""):

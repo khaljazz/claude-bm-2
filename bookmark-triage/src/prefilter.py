@@ -54,12 +54,23 @@ def check_build_candidate(bookmark):
 
 
 def prefilter_all():
-    """Run pre-filter on all bucketed bookmarks."""
+    """Run pre-filter on all bucketed bookmarks.
+
+    X/Twitter bookmarks are skipped — raw URLs lack enough signal for
+    keyword classification. They get queued separately for later review.
+    """
     conn = get_connection()
     bookmarks = get_bookmarks(conn, "status = 'bucketed'")
 
     candidate_count = 0
+    x_skipped = 0
     for bm in bookmarks:
+        # Skip X bookmarks — URLs alone can't be reliably classified
+        if bm["site_bucket"] == "x":
+            update_bookmark(conn, bm["id"], status="x_review")
+            x_skipped += 1
+            continue
+
         is_candidate, reason = check_build_candidate(bm)
         if is_candidate:
             update_bookmark(conn, bm["id"],
@@ -74,5 +85,6 @@ def prefilter_all():
     conn.close()
 
     total = len(bookmarks)
-    print(f"Pre-filter complete: {candidate_count} build candidates out of {total} bookmarks")
+    print(f"Pre-filter complete: {candidate_count} build candidates, "
+          f"{x_skipped} X links queued for review, out of {total} bookmarks")
     return candidate_count, total
